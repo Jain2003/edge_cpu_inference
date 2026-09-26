@@ -4,6 +4,8 @@ A lightweight, high-performance C++ CPU inference engine simulating a **Smart AI
 
 When the user takes a photo snapshot with their AI glasses and asks *"What is this?"*, the executable ingests the image path, executes single-image ONNX CPU inference via the ONNX Runtime C++ API, and outputs human-readable classification results with detailed latency profiling.
 
+Supports both **FP32 Baseline** and **INT8 Dynamic Quantization** with automated side-by-side performance, latency, and memory comparison.
+
 ---
 
 ## 📁 Directory Structure
@@ -12,6 +14,7 @@ When the user takes a photo snapshot with their AI glasses and asks *"What is th
 edge_vision_assistant/
 ├── CMakeLists.txt              # Cross-platform CMake build configuration (auto-fetches ONNX Runtime)
 ├── download_assets.py          # Python script to download ResNet-18, ImageNet labels, and sample images
+├── quantize_model.py           # Generates 8-bit quantized ONNX model (shrinks weights by ~75%)
 ├── benchmark_100.py            # Automated 100-image ImageNet benchmarking & report generator
 ├── results/                    # Generated benchmark evaluation reports
 │   ├── benchmark_results.xlsx  # Detailed styled Excel report with accuracy & latency metrics
@@ -19,11 +22,12 @@ edge_vision_assistant/
 ├── include/                    # Header-only dependencies (stb_image, stb_image_resize2)
 ├── data/                       # ImageNet benchmark test dataset
 │   └── test_100/               # 100 diverse ImageNet benchmark images
-├── models/                     # Pre-trained ONNX model & ImageNet classes
-│   ├── resnet18-v1-7.onnx      # Pre-trained ResNet-18 model
+├── models/                     # Pre-trained ONNX models & ImageNet classes
+│   ├── resnet18-v1-7.onnx      # Baseline FP32 ResNet-18 model (~44.7 MB)
+│   ├── resnet18-v1-7-int8.onnx # Dynamically quantized INT8 ResNet-18 model (~11.3 MB)
 │   └── imagenet_classes.txt    # 1,000 ImageNet synset category labels
 ├── src/
-│   └── main.cpp                # Modern C++ dataset & snapshot inference engine
+│   └── main.cpp                # Modern C++ dataset & snapshot inference engine (FP32 vs INT8)
 └── README.md                   # Build, usage, and architectural documentation
 ```
 
@@ -39,7 +43,16 @@ Run the asset download script once to fetch the pre-trained `resnet18-v1-7.onnx`
 python3 download_assets.py
 ```
 
-### 2. Configure & Build with CMake
+### 2. Generate INT8 Quantized Model (Optional)
+
+Generate the 8-bit quantized model using dynamic quantization:
+
+```bash
+python3 quantize_model.py
+```
+*(If the INT8 model is missing when running in comparison mode, the C++ application automatically runs this script for you).*
+
+### 3. Configure & Build with CMake
 
 ```bash
 cmake -B build
@@ -48,38 +61,49 @@ cmake --build build --config Release
 
 *Note: CMake automatically downloads and configures the official pre-built ONNX Runtime C++ binaries for your platform (Linux x86_64, aarch64, macOS, Windows) if not already installed!*
 
-### 3. Run Inference on the ImageNet Dataset
+### 4. Run Side-by-Side Comparison (FP32 vs INT8)
 
-Run without arguments to evaluate all 100 images in `data/test_100/` and view the dataset summary:
+Run directly on any snapshot image to trigger the side-by-side benchmark scorecard:
 
 ```bash
-./build/edge_vision_assistant
+./build/edge_vision_assistant data/test_100/n01440764_tench.JPEG
 ```
 
-Or pass any directory or individual image path directly via CLI:
+You can also explicitly select the execution precision:
 
 ```bash
+# Run only INT8 quantized model
+./build/edge_vision_assistant --int8 data/test_100/n01440764_tench.JPEG
+
+# Run only FP32 baseline model
+./build/edge_vision_assistant --fp32 data/test_100/n01440764_tench.JPEG
+
+# Evaluate entire 100-image dataset
 ./build/edge_vision_assistant data/test_100
-./build/edge_vision_assistant data/test_100/n01440764_tench.JPEG
-./build/edge_vision_assistant /path/to/any/custom_image.jpg
 ```
 
 ---
 
-## 🖥️ Example CLI Output
+## ⚔️ Side-by-Side Benchmark Scorecard
+
+When evaluating a snapshot in `--compare` mode, the C++ engine measures preprocessing, CPU inference latency across both models, prediction fidelity, and peak resident memory (RSS via `getrusage`):
 
 ```text
-====================================================
-👓 SMART AI GLASSES VISION ASSISTANT (C++ CPU ENGINE)
-====================================================
-Input Image    : data/cat.jpg
-Vision Result  : Tabby Cat (Class ID: 281)
-Confidence     : 94.2%
----------------- LATENCY PROFILE -------------------
-Preprocessing  : 1.8 ms
-CPU Inference  : 11.4 ms (AVX2 Vector Cores)
-Total Latency  : 13.2 ms (75.8 FPS)
-====================================================
+===================================================================================================
+⚔️  SIDE-BY-SIDE BENCHMARK SCORECARD: FP32 BASELINE vs INT8 QUANTIZATION
+===================================================================================================
+Metric / Dimension          FP32 Baseline           INT8 Quantized          Delta / Efficiency Gain
+---------------------------------------------------------------------------------------------------
+Model Size (Disk/RAM)       44.65 MB                11.25 MB                -74.78% (33.39 MB saved!)
+Weight Precision            32-bit Float (FP32)     8-bit Signed Int (INT8) 4x smaller weight footprint
+Preprocessing Latency       18.22 ms                18.22 ms                Identical (shared input tensor)
+CPU Inference Latency       22.28 ms                23.86 ms                0.93x (7.12% delta)
+Total End-to-End Latency    40.80 ms                42.11 ms                +1.31 ms delta
+Inference Throughput        44.28 FPS               41.85 FPS               -5.50% FPS
+Top-1 Classification        Tench (#0)              Tench (#0)              100% Agreement (Identical Prediction) ✅
+Prediction Confidence       99.16%                  99.39%                  +0.22% (Negligible delta)
+Peak Process RAM (RSS)      400.16 MB               400.16 MB               Measured via getrusage()
+===================================================================================================
 ```
 
 ---
@@ -101,55 +125,40 @@ python3 benchmark_100.py
 4. **Statistical Aggregation**: Computes mean, median, P90, and P95 latency percentiles for preprocessing, CPU inference, and end-to-end execution.
 5. **Formatted Exports**: Saves results to `results/benchmark_results.csv` and a styled multi-sheet Excel workbook `results/benchmark_results.xlsx`.
 
-### Summary Benchmark Metrics
-
-| Metric | Measured Value |
-| :--- | :--- |
-| **Total Test Images** | 100 diverse categories |
-| **Top-1 Accuracy** | High agreement with ground-truth synset labels |
-| **Inference Hardware** | Edge CPU with SIMD / AVX2 Vector Kernels |
-| **P95 Tail Latency** | Profiled under burst snapshot loads |
-| **Reports Produced** | `results/benchmark_results.xlsx`, `results/benchmark_results.csv` |
-
 ---
 
 ## 🔍 Pipeline Architecture (`src/main.cpp`)
 
-1. **CLI Ingestion**: Accepts a single image file path representing a snapshot capture event (with fallback default).
+1. **CLI Ingestion**: Parses arguments (`--compare`, `--int8`, `--fp32`, path) using modern C++ `std::vector<std::string>`.
 2. **Preprocessing**:
    - Ingests image from disk via STB Image (`stbi_load`).
    - High-quality bilinear resize to model input dimensions (224 × 224) via `stbir_resize_uint8_linear`.
    - Normalizes pixels using ImageNet mean & standard deviation ($\mu = [0.485, 0.456, 0.406]$, $\sigma = [0.229, 0.224, 0.225]$).
    - Converts interleaved RGB (HWC) to planar NCHW layout `[1, 3, 224, 224]`.
-3. **Execution**: Evaluates `Ort::Session::Run()` using ONNX Runtime's optimized vector execution provider.
+3. **Dual-Model Execution**: Evaluates `Ort::Session::Run()` for both FP32 and INT8 models with warm-up cycles.
 4. **Postprocessing**: Computes numerically stable Softmax, selects Top-1 Argmax class, and looks up human-readable ImageNet label with title formatting.
-5. **Profiling**: Measures microsecond timestamps via `std::chrono::steady_clock` across Preprocessing, CPU Inference, and aggregate execution.
+5. **Profiling**: Measures microsecond timestamps via `std::chrono::steady_clock` across Preprocessing, CPU Inference, and aggregate execution, along with peak resident memory (`getrusage()`).
 
 ---
 
 ## 💡 C++ Design & Best Practices
 
-### 1. Modern C++ Argument Parsing & Dataset Fallback
+### 1. Modern C++ Argument Parsing & Memory Profiling
 In [`src/main.cpp`](src/main.cpp):
-```cpp
-// Parse CLI arguments using standard C++ strings (defaults to dataset "data/test_100")
-const std::vector<std::string> args(argv + 1, argv + argc);
-const fs::path target_path = args.empty() ? fs::path("data/test_100") : fs::path(args[0]);
-```
-- **Why?** Using `std::vector<std::string>` and `std::filesystem::path` completely avoids C-style raw pointer arithmetic and raw character array handling.
-- **Flexibility**: If no arguments are passed, it defaults to evaluating the entire `data/test_100` benchmark suite. If an individual image or custom folder is passed, it dynamically detects and processes it.
+- Uses `std::vector<std::string>` and `std::filesystem::path` to eliminate raw pointer arithmetic and C-style char arrays.
+- Employs `getrusage(RUSAGE_SELF, ...)` on Linux to inspect resident process memory (RSS) in megabytes.
+- Manages STB Image buffers via `std::unique_ptr<unsigned char[], StbImageDeleter>` RAII handles.
 
 ### 2. Why Explicit `std::` Instead of `using namespace std;`?
 This codebase follows modern C++ industry guidelines (including C++ Core Guidelines SF.7):
-- **Avoid Namespace Pollution**: The `std` namespace defines hundreds of generic identifiers (such as `size`, `count`, `distance`, `move`, `min`, `max`). Using `using namespace std;` brings all of them into global scope, risking name collisions with third-party headers (ONNX Runtime, STB Image) and project types.
-- **Explicit Provenance & Readability**: Explicitly writing `std::vector`, `std::string`, `std::chrono` makes it immediately apparent which types belong to the standard library vs third-party APIs (`Ort::`) or project structures (`VisionResult`).
-- **Targeted Scope Aliases**: Where abbreviation improves readability without namespace pollution, targeted local aliases are used instead (e.g., `using Clock = std::chrono::steady_clock;` inside `main()`, or `namespace fs = std::filesystem;`).
+- **Avoid Namespace Pollution**: The `std` namespace defines hundreds of generic identifiers (`size`, `count`, `distance`, `move`, `min`, `max`). Using `using namespace std;` brings all of them into global scope, risking name collisions.
+- **Explicit Provenance & Readability**: Explicitly writing `std::vector`, `std::string`, `std::chrono` makes it immediately clear which types belong to the standard library vs third-party APIs (`Ort::`) or project structures (`VisionResult`).
+- **Targeted Scope Aliases**: Where abbreviation improves readability without namespace pollution, targeted local aliases are used instead (e.g., `using Clock = std::chrono::steady_clock;` inside functions).
 
 ---
 
 ## 🚀 Optimization & Customization Points
 
-The pipeline is intentionally structured into clean, modular blocks with marked optimization extension points:
 - **Zero-Allocation Arenas**: Pre-allocate continuous tensor buffers to eliminate heap allocations across consecutive frames.
 - **SIMD Vector Intrinsics**: Replace pixel normalization loops with explicit AVX2/AVX-512 (`_mm256_fmadd_ps`) or ARM NEON (`vfmaq_f32`) vector intrinsics.
-- **Multi-Threading**: Tune `session_options.SetIntraOpNumThreads()` for your specific edge CPU core configuration.
+- **VNNI Acceleration**: On CPUs supporting Intel DL Boost / VNNI (`vpdpbusd`), INT8 quantized matrix multiplications execute with double the throughput of standard AVX2.

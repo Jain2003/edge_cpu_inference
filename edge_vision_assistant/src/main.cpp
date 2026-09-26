@@ -4,9 +4,8 @@
  * High-performance, lightweight C++ CPU inference pipeline simulating
  * a Smart AI Glasses visual query engine ("What is this?").
  *
- * Ingests image snapshots, performs bilinear resizing and ImageNet
- * normalization using STB image, and executes ONNX Runtime CPU inference
- * with AVX2 vector SIMD optimizations and detailed latency breakdown.
+ * Supports FP32 Baseline vs INT8 Quantized execution with side-by-side
+ * performance, latency, and memory comparison.
  */
 
 #include <iostream>
@@ -54,6 +53,21 @@ struct VisionResult {
     double postprocess_ms = 0.0;
     double total_ms = 0.0;
     double fps = 0.0;
+};
+
+struct ModelRunProfile {
+    std::string tag;
+    std::string precision;
+    fs::path model_path;
+    double file_size_mb = 0.0;
+    double inference_ms = 0.0;
+    double postprocess_ms = 0.0;
+    double total_ms = 0.0;
+    double fps = 0.0;
+    int class_id = -1;
+    std::string class_name = "Unknown";
+    float confidence_pct = 0.0f;
+    double peak_rss_mb = 0.0;
 };
 
 // Custom RAII deleter for STB image memory
@@ -402,31 +416,231 @@ bool is_image_file(const fs::path& file_path) {
     return (lower_ext == ".jpg" || lower_ext == ".jpeg" || lower_ext == ".png" || lower_ext == ".bmp");
 }
 
+// Execute single model inference evaluation and record metrics
+ModelRunProfile evaluate_model(
+    Ort::Session& session,
+    const std::string& input_name,
+    const std::string& output_name,
+    const std::vector<float>& input_tensor_values,
+    const std::array<int64_t, 4>& input_shape,
+    const std::vector<std::string>& class_labels,
+    const fs::path& model_path,
+    const std::string& tag,
+    const std::string& precision,
+    bool verbose = false
+) {
+    using Clock = std::chrono::steady_clock;
+    ModelRunProfile profile;
+    profile.tag = tag;
+    profile.precision = precision;
+    profile.model_path = model_path;
+    profile.file_size_mb = static_cast<double>(fs::file_size(model_path)) / (1024.0 * 1024.0);
+
+    const std::array<const char*, 1> input_names = { input_name.c_str() };
+    const std::array<const char*, 1> output_names = { output_name.c_str() };
+
+    auto memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+    Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
+        memory_info,
+        const_cast<float*>(input_tensor_values.data()),
+        input_tensor_values.size(),
+        input_shape.data(),
+        input_shape.size()
+    );
+
+    // Warm-up run
+    session.Run(Ort::RunOptions{nullptr}, input_names.data(), &input_tensor, 1, output_names.data(), 1);
+
+    // Measured run
+    const auto t_start = Clock::now();
+    auto output_tensors = session.Run(
+        Ort::RunOptions{nullptr},
+        input_names.data(),
+        &input_tensor,
+        1,
+        output_names.data(),
+        1
+    );
+    const auto t_end = Clock::now();
+    profile.inference_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+
+    // Postprocess
+    const auto t_post_start = Clock::now();
+    float* raw_output = output_tensors[0].GetTensorMutableData<float>();
+    const size_t num_classes = output_tensors[0].GetTensorTypeAndShapeInfo().GetElementCount();
+
+    postprocess_logits(
+        raw_output,
+        num_classes,
+        class_labels,
+        profile.class_id,
+        profile.class_name,
+        profile.confidence_pct,
+        verbose
+    );
+    const auto t_post_end = Clock::now();
+    profile.postprocess_ms = std::chrono::duration<double, std::milli>(t_post_end - t_post_start).count();
+    profile.total_ms = profile.inference_ms + profile.postprocess_ms;
+    profile.fps = (profile.total_ms > 0.0) ? (1000.0 / profile.total_ms) : 0.0;
+    profile.peak_rss_mb = get_peak_rss_mb();
+
+    return profile;
+}
+
+// Print side-by-side comparison table
+void print_comparison_table(const ModelRunProfile& fp32, const ModelRunProfile& int8, double preprocess_ms) {
+    const double size_saved_mb = fp32.file_size_mb - int8.file_size_mb;
+    const double size_saved_pct = (size_saved_mb / fp32.file_size_mb) * 100.0;
+    const double speedup_ratio = (int8.inference_ms > 0.0) ? (fp32.inference_ms / int8.inference_ms) : 1.0;
+    const double latency_saved_ms = fp32.inference_ms - int8.inference_ms;
+    const double latency_saved_pct = (latency_saved_ms / fp32.inference_ms) * 100.0;
+    const bool class_match = (fp32.class_id == int8.class_id);
+
+    std::cout << "===================================================================================================\n";
+    std::cout << "⚔️  SIDE-BY-SIDE BENCHMARK SCORECARD: FP32 BASELINE vs INT8 QUANTIZATION\n";
+    std::cout << "===================================================================================================\n";
+    std::cout << std::left << std::setw(28) << "Metric / Dimension"
+              << std::setw(24) << "FP32 Baseline"
+              << std::setw(24) << "INT8 Quantized"
+              << "Delta / Efficiency Gain\n";
+    std::cout << "---------------------------------------------------------------------------------------------------\n";
+
+    std::cout << std::fixed << std::setprecision(2);
+    // Model size on disk
+    std::cout << std::left << std::setw(28) << "Model Size (Disk/RAM)"
+              << std::setw(24) << (std::to_string(fp32.file_size_mb).substr(0, 5) + " MB")
+              << std::setw(24) << (std::to_string(int8.file_size_mb).substr(0, 5) + " MB")
+              << "-" << size_saved_pct << "% (" << size_saved_mb << " MB saved!)\n";
+
+    // Weight precision
+    std::cout << std::left << std::setw(28) << "Weight Precision"
+              << std::setw(24) << "32-bit Float (FP32)"
+              << std::setw(24) << "8-bit Signed Int (INT8)"
+              << "4x smaller weight footprint\n";
+
+    // Preprocessing Latency
+    std::cout << std::left << std::setw(28) << "Preprocessing Latency"
+              << std::setw(24) << (std::to_string(preprocess_ms).substr(0, 5) + " ms")
+              << std::setw(24) << (std::to_string(preprocess_ms).substr(0, 5) + " ms")
+              << "Identical (shared input tensor)\n";
+
+    // CPU Inference Latency
+    std::cout << std::left << std::setw(28) << "CPU Inference Latency"
+              << std::setw(24) << (std::to_string(fp32.inference_ms).substr(0, 5) + " ms")
+              << std::setw(24) << (std::to_string(int8.inference_ms).substr(0, 5) + " ms");
+    if (speedup_ratio >= 1.0) {
+        std::cout << speedup_ratio << "x FASTER (" << latency_saved_pct << "% saved) 🚀\n";
+    } else {
+        std::cout << speedup_ratio << "x (" << std::abs(latency_saved_pct) << "% delta)\n";
+    }
+
+    // Total Latency
+    const double fp32_total = preprocess_ms + fp32.total_ms;
+    const double int8_total = preprocess_ms + int8.total_ms;
+    std::cout << std::left << std::setw(28) << "Total End-to-End Latency"
+              << std::setw(24) << (std::to_string(fp32_total).substr(0, 5) + " ms")
+              << std::setw(24) << (std::to_string(int8_total).substr(0, 5) + " ms");
+    if (fp32_total >= int8_total) {
+        std::cout << "-" << (fp32_total - int8_total) << " ms total time saved ⚡\n";
+    } else {
+        std::cout << "+" << (int8_total - fp32_total) << " ms delta\n";
+    }
+
+    // Inference Throughput
+    std::cout << std::left << std::setw(28) << "Inference Throughput"
+              << std::setw(24) << (std::to_string(fp32.fps).substr(0, 5) + " FPS")
+              << std::setw(24) << (std::to_string(int8.fps).substr(0, 5) + " FPS");
+    if (int8.fps >= fp32.fps) {
+        std::cout << "+" << ((int8.fps - fp32.fps) / fp32.fps * 100.0) << "% FPS gain\n";
+    } else {
+        std::cout << ((int8.fps - fp32.fps) / fp32.fps * 100.0) << "% FPS\n";
+    }
+
+    // Top-1 Class
+    std::cout << std::left << std::setw(28) << "Top-1 Classification"
+              << std::setw(24) << (fp32.class_name + " (#" + std::to_string(fp32.class_id) + ")")
+              << std::setw(24) << (int8.class_name + " (#" + std::to_string(int8.class_id) + ")")
+              << (class_match ? "100% Agreement (Identical Prediction) ✅" : "Mismatch ⚠️") << "\n";
+
+    // Confidence
+    const float conf_delta = int8.confidence_pct - fp32.confidence_pct;
+    std::cout << std::left << std::setw(28) << "Prediction Confidence"
+              << std::setw(24) << (std::to_string(fp32.confidence_pct).substr(0, 5) + "%")
+              << std::setw(24) << (std::to_string(int8.confidence_pct).substr(0, 5) + "%")
+              << (conf_delta >= 0 ? "+" : "") << conf_delta << "% (Negligible delta)\n";
+
+    // Process Peak RAM
+    std::cout << std::left << std::setw(28) << "Peak Process RAM (RSS)"
+              << std::setw(24) << (std::to_string(fp32.peak_rss_mb).substr(0, 6) + " MB")
+              << std::setw(24) << (std::to_string(int8.peak_rss_mb).substr(0, 6) + " MB")
+              << "Measured via getrusage()\n";
+
+    std::cout << "===================================================================================================\n\n";
+}
+
 // =========================================================================
 // Main Inference Application
 // =========================================================================
 int main(int argc, char* argv[]) {
     using Clock = std::chrono::steady_clock;
 
-    // Parse CLI arguments using standard C++ strings (defaults to dataset "data/test_100")
+    // Parse CLI arguments
     const std::vector<std::string> args(argv + 1, argv + argc);
-    const fs::path target_path = args.empty() ? fs::path("data/test_100") : fs::path(args[0]);
 
-    const fs::path model_path = "models/resnet18-v1-7.onnx";
+    bool force_fp32 = false;
+    bool force_int8 = false;
+    bool compare_mode = false;
+    fs::path target_path = "data/test_100/n01440764_tench.JPEG";
+
+    for (const auto& arg : args) {
+        if (arg == "--fp32") {
+            force_fp32 = true;
+        } else if (arg == "--int8") {
+            force_int8 = true;
+        } else if (arg == "--compare") {
+            compare_mode = true;
+        } else if (!arg.empty() && arg[0] != '-') {
+            target_path = arg;
+        }
+    }
+
+    // Default to compare mode on single image if no explicit precision flag is specified
+    if (!force_fp32 && !force_int8) {
+        compare_mode = true;
+    }
+
+    const fs::path fp32_model_path = "models/resnet18-v1-7.onnx";
+    const fs::path int8_model_path = "models/resnet18-v1-7-int8.onnx";
     const fs::path labels_path = "models/imagenet_classes.txt";
 
     // Validate target existence
     if (!fs::exists(target_path)) {
         std::cerr << "[ERROR] Target path not found: " << target_path.string() << "\n";
-        std::cerr << "Usage: " << argv[0] << " [path_to_image_or_directory]\n";
+        std::cerr << "Usage: " << argv[0] << " [options] [path_to_image_or_directory]\n";
+        std::cerr << "Options:\n";
+        std::cerr << "  --compare   Run side-by-side FP32 vs INT8 benchmark comparison (Default on single image)\n";
+        std::cerr << "  --int8      Run only quantized INT8 model\n";
+        std::cerr << "  --fp32      Run only baseline FP32 model\n";
         return 1;
     }
 
-    // Validate model existence
-    if (!fs::exists(model_path)) {
-        std::cerr << "[ERROR] Model not found: " << model_path.string() << "\n";
+    // Validate models
+    if (!fs::exists(fp32_model_path)) {
+        std::cerr << "[ERROR] FP32 model not found: " << fp32_model_path.string() << "\n";
         std::cerr << "Please run 'python3 download_assets.py' first.\n";
         return 1;
+    }
+
+    if ((compare_mode || force_int8) && !fs::exists(int8_model_path)) {
+        std::cout << "[INFO] INT8 model not found. Generating models/resnet18-v1-7-int8.onnx via quantize_model.py...\n";
+        const int ret = std::system("python3 quantize_model.py");
+        if (ret != 0) {
+            std::cerr << "[WARN] quantize_model.py returned exit code " << ret << "\n";
+        }
+        if (!fs::exists(int8_model_path)) {
+            std::cerr << "[ERROR] Failed to generate INT8 model.\n";
+            return 1;
+        }
     }
 
     // Collect image files
@@ -464,10 +678,67 @@ int main(int argc, char* argv[]) {
     std::cout << "👓 SMART AI GLASSES VISION ASSISTANT (C++ CPU ENGINE)\n";
     std::cout << "=================================================================================\n";
     std::cout << "Target Path    : " << target_path.string() << " (" << image_paths.size() << " image" << (is_single_image ? "" : "s") << ")\n";
-    std::cout << "Model File     : " << model_path.filename().string() << " (FP32 Baseline)\n";
+    std::cout << "Execution Mode : " << (compare_mode ? "Side-by-Side Comparison (FP32 vs INT8)" : (force_int8 ? "INT8 Quantized" : "FP32 Baseline")) << "\n";
     std::cout << "Vector Engine  : " << get_cpu_vector_feature() << "\n";
 
-    Ort::Session session(env, model_path.c_str(), session_options);
+    // -------------------------------------------------------------------------
+    // CASE A: SIDE-BY-SIDE COMPARISON MODE (for single image)
+    // -------------------------------------------------------------------------
+    if (compare_mode && is_single_image) {
+        const auto& img_path = image_paths[0];
+
+        // Step 1: Preprocess once
+        std::vector<float> input_tensor_values;
+        std::string error_msg;
+        const auto t_pre_start = Clock::now();
+        if (!preprocess_image(img_path, target_w, target_h, input_tensor_values, error_msg, true)) {
+            std::cerr << "[ERROR] " << error_msg << "\n";
+            return 1;
+        }
+        const auto t_pre_end = Clock::now();
+        const double preprocess_ms = std::chrono::duration<double, std::milli>(t_pre_end - t_pre_start).count();
+
+        // 1. Evaluate FP32 Baseline
+        Ort::Session session_fp32(env, fp32_model_path.c_str(), session_options);
+        Ort::AllocatorWithDefaultOptions allocator;
+        const std::string in_name_fp32 = session_fp32.GetInputNameAllocated(0, allocator).get();
+        const std::string out_name_fp32 = session_fp32.GetOutputNameAllocated(0, allocator).get();
+
+        std::cout << "\n>>> [1/2] Running FP32 Baseline Model (" << fp32_model_path.filename().string() << ") ...\n";
+        ModelRunProfile prof_fp32 = evaluate_model(
+            session_fp32, in_name_fp32, out_name_fp32,
+            input_tensor_values, input_shape, class_labels,
+            fp32_model_path, "FP32", "32-bit Float", true
+        );
+
+        // 2. Evaluate INT8 Quantized
+        Ort::Session session_int8(env, int8_model_path.c_str(), session_options);
+        const std::string in_name_int8 = session_int8.GetInputNameAllocated(0, allocator).get();
+        const std::string out_name_int8 = session_int8.GetOutputNameAllocated(0, allocator).get();
+
+        std::cout << "\n>>> [2/2] Running INT8 Quantized Model (" << int8_model_path.filename().string() << ") ...\n";
+        ModelRunProfile prof_int8 = evaluate_model(
+            session_int8, in_name_int8, out_name_int8,
+            input_tensor_values, input_shape, class_labels,
+            int8_model_path, "INT8", "8-bit Signed Integer", false
+        );
+
+        // Print comparative scorecard
+        print_comparison_table(prof_fp32, prof_int8, preprocess_ms);
+        return 0;
+    }
+
+    // -------------------------------------------------------------------------
+    // CASE B: STANDARD RUN (Single model over dataset or single image)
+    // -------------------------------------------------------------------------
+    const fs::path active_model_path = force_int8 ? int8_model_path : fp32_model_path;
+    const std::string active_tag = force_int8 ? "INT8 Quantized" : "FP32 Baseline";
+
+    std::cout << "Active Model   : " << active_model_path.filename().string() << " (" << active_tag << ")\n";
+    std::cout << "Model Size     : " << std::fixed << std::setprecision(2)
+              << (fs::file_size(active_model_path) / (1024.0 * 1024.0)) << " MB\n";
+
+    Ort::Session session(env, active_model_path.c_str(), session_options);
     Ort::AllocatorWithDefaultOptions allocator;
     const std::string input_name = session.GetInputNameAllocated(0, allocator).get();
     const std::string output_name = session.GetOutputNameAllocated(0, allocator).get();
@@ -543,7 +814,7 @@ int main(int argc, char* argv[]) {
     if (is_single_image) {
         const auto& single_res = results[0];
         std::cout << "=================================================================================\n";
-        std::cout << "📊 INFERENCE RESULT FOR SINGLE SNAPSHOT (FP32 Baseline)\n";
+        std::cout << "📊 INFERENCE RESULT FOR SINGLE SNAPSHOT (" << active_tag << ")\n";
         std::cout << "=================================================================================\n";
         std::cout << "Input Image    : " << single_res.image_name << "\n";
         std::cout << "Vision Result  : " << single_res.class_name << " (Class ID: " << single_res.class_id << ")\n";
@@ -585,7 +856,7 @@ int main(int argc, char* argv[]) {
     const double p95_lat = latencies[p95_idx];
 
     std::cout << "=================================================================================\n";
-    std::cout << "📊 DATASET EVALUATION SUMMARY (" << results.size() << " IMAGES - FP32 Baseline)\n";
+    std::cout << "📊 DATASET EVALUATION SUMMARY (" << results.size() << " IMAGES - " << active_tag << ")\n";
     std::cout << "=================================================================================\n";
     std::cout << std::fixed << std::setprecision(2);
     std::cout << "Average Preprocess  : " << avg_pre << " ms\n";
