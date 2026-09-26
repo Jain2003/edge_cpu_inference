@@ -1,0 +1,101 @@
+Index,Filename,Ground_Truth_Class,Ground_Truth_ID,Predicted_Class,Predicted_ID,Top1_Match,Confidence_Pct,Preprocessing_ms,CPU_Inference_ms,Total_Latency_ms,FPS
+1,n01440764_tench.JPEG,Tench,0,Tench,0,YES,99.2,91.10,129.20,220.30,4.5
+2,n01530575_brambling.JPEG,Brambling,10,Brambling,10,YES,65.9,139.00,33.60,172.60,5.8
+3,n01601694_water_ouzel.JPEG,Water Ouzel,20,American Dipper,20,YES,99.3,149.40,36.90,186.30,5.4
+4,n01641577_bullfrog.JPEG,Bullfrog,30,American Bullfrog,30,YES,97.1,121.50,29.50,151.00,6.6
+5,n01682714_American_chameleon.JPEG,American Chameleon,40,Carolina Anole,40,YES,67.3,121.30,17.90,139.20,7.2
+6,n01698640_American_alligator.JPEG,American Alligator,50,Nile Crocodile,49,NO,65.1,118.80,31.30,150.10,6.7
+7,n01740131_night_snake.JPEG,Night Snake,60,Ring-Necked Snake,53,NO,23.4,75.10,30.30,105.50,9.5
+8,n01770081_harvestman.JPEG,Harvestman,70,Harvestman,70,YES,91.3,77.90,38.60,116.60,8.6
+9,n01795545_black_grouse.JPEG,Black Grouse,80,Black Grouse,80,YES,98.6,146.50,34.20,180.80,5.5
+10,n01820546_lorikeet.JPEG,Lorikeet,90,Lorikeet,90,YES,99.9,113.40,22.70,136.10,7.3
+11,n01860187_black_swan.JPEG,Black Swan,100,Black Swan,100,YES,52.6,83.00,26.90,109.90,9.1
+12,n01924916_flatworm.JPEG,Flatworm,110,Flatworm,110,YES,95.5,267.20,18.90,286.20,3.5
+13,n01980166_fiddler_crab.JPEG,Fiddler Crab,120,Fiddler Crab,120,YES,96.0,124.20,46.70,171.00,5.8
+14,n02007558_flamingo.JPEG,Flamingo,130,Flamingo,130,YES,69.5,129.40,24.60,154.10,6.5
+15,n02027492_red-backed_sandpiper.JPEG,Red-Backed Sandpiper,140,Dunlin,140,YES,91.4,106.30,33.50,139.80,7.2
+16,n02077923_sea_lion.JPEG,Sea Lion,150,Sea Lion,150,YES,97.4,60.90,19.10,80.00,12.5
+17,n02088094_Afghan_hound.JPEG,Afghan Hound,160,Afghan Hound,160,YES,96.2,62.80,56.30,119.20,8.4
+18,n02090721_Irish_wolfhound.JPEG,Irish Wolfhound,170,Irish Wolfhound,170,YES,92.4,67.70,32.80,100.60,9.9
+19,n02093428_American_Staffordshire_terrier.JPEG,American Staffordshire Terrier,180,American Staffordshire Terrier,180,YES,52.0,63.20,26.20,89.40,11.2
+20,n02095889_Sealyham_terrier.JPEG,Sealyham Terrier,190,Sealyham Terrier,190,YES,93.2,52.30,25.80,78.10,12.8
+21,n02097474_Tibetan_terrier.JPEG,Tibetan Terrier,200,Tibetan Terrier,200,YES,94.7,142.80,32.60,175.50,5.7
+22,n02100236_German_short-haired_pointer.JPEG,German Short-Haired Pointer,210,German Shorthaired Pointer,210,YES,89.1,129.40,37.40,166.80,6.0
+23,n02102480_Sussex_spaniel.JPEG,Sussex Spaniel,220,Sussex Spaniel,220,YES,99.7,80.80,33.40,114.30,8.8
+24,n02105855_Shetland_sheepdog.JPEG,Shetland Sheepdog,230,Skunk,361,NO,33.4,115.50,31.40,147.00,6.8
+25,n02107908_Appenzeller.JPEG,Appenzeller,240,Bernese Mountain Dog,239,NO,85.0,112.30,20.00,132.40,7.6
+26,n02110185_Siberian_husky.JPEG,Siberian Husky,250,Newfoundland,256,NO,14.4,70.50,39.40,109.90,9.1
+27,n02112137_chow.JPEG,Chow,260,Chow Chow,260,YES,65.9,79.40,39.00,118.40,8.4
+28,n02114548_white_wolf.JPEG,White Wolf,270,Alaskan Tundra Wolf,270,YES,43.7,135.30,50.20,185.50,5.4
+29,n02120505_grey_fox.JPEG,Grey Fox,280,Grey Fox,280,YES,96.4,155.60,24.10,179.70,5.6
+30,n02128925_jaguar.JPEG,Jaguar,290,Cougar,286,NO,94.5,72.70,29.10,101.80,9.8
+31,n02165105_tiger_beetle.JPEG,Tiger Beetle,300,Tiger Beetle,300,YES,98.8,60.80,18.50,79.30,12.6
+32,n02219486_ant.JPEG,Ant,310,Cricket,312,NO,28.4,106.30,21.70,128.10,7.8
+33,n02268853_damselfly.JPEG,Damselfly,320,Dragonfly,319,NO,61.8,78.40,18.70,97.10,10.3
+34,n02325366_wood_rabbit.JPEG,Wood Rabbit,330,Cottontail Rabbit,330,YES,93.6,68.50,24.30,92.80,10.8
+35,n02391049_zebra.JPEG,Zebra,340,Zebra,340,YES,99.9,127.30,33.00,160.40,6.2
+36,n02417914_ibex.JPEG,Ibex,350,Alpine Ibex,350,YES,99.8,120.20,25.90,146.20,6.8
+37,n02444819_otter.JPEG,Otter,360,Brown Bear,294,NO,46.5,111.10,36.30,147.50,6.8
+38,n02484975_guenon.JPEG,Guenon,370,Guenon,370,YES,99.0,88.40,36.40,124.90,8.0
+39,n02493509_titi.JPEG,Titi,380,Titi,380,YES,80.6,66.40,17.70,84.10,11.9
+40,n02526121_eel.JPEG,Eel,390,Eel,390,YES,20.8,73.40,32.60,106.00,9.4
+41,n02669723_academic_gown.JPEG,Academic Gown,400,Academic Gown,400,YES,95.0,68.00,30.80,98.80,10.1
+42,n02727426_apiary.JPEG,Apiary,410,Apiary,410,YES,99.6,84.30,37.10,121.50,8.2
+43,n02787622_banjo.JPEG,Banjo,420,Banjo,420,YES,94.1,135.90,32.30,168.20,5.9
+44,n02802426_basketball.JPEG,Basketball,430,Basketball,430,YES,88.9,89.30,27.50,116.80,8.6
+45,n02823428_beer_bottle.JPEG,Beer Bottle,440,Beer Bottle,440,YES,49.9,82.80,24.60,107.40,9.3
+46,n02860847_bobsled.JPEG,Bobsled,450,Bobsleigh,450,YES,99.9,90.60,29.50,120.10,8.3
+47,n02894605_breakwater.JPEG,Breakwater,460,Breakwater,460,YES,53.9,127.00,18.00,145.00,6.9
+48,n02948072_candle.JPEG,Candle,470,Candle,470,YES,99.4,72.80,18.90,91.80,10.9
+49,n02977058_cash_machine.JPEG,Cash Machine,480,Automated Teller Machine,480,YES,99.7,109.80,34.90,144.70,6.9
+50,n03000247_chain_mail.JPEG,Chain Mail,490,Chain Mail,490,YES,99.7,109.90,22.50,132.40,7.6
+51,n03042490_cliff_dwelling.JPEG,Cliff Dwelling,500,Cliff Dwelling,500,YES,80.9,114.30,22.00,136.30,7.3
+52,n03095699_container_ship.JPEG,Container Ship,510,Container Ship,510,YES,99.9,102.20,25.10,127.30,7.9
+53,n03131574_crib.JPEG,Crib,520,Cradle,516,NO,34.4,87.40,37.90,125.40,8.0
+54,n03196217_digital_clock.JPEG,Digital Clock,530,Digital Clock,530,YES,100.0,72.90,30.70,103.60,9.7
+55,n03240683_drilling_platform.JPEG,Drilling Platform,540,Drilling Rig,540,YES,26.1,61.30,23.90,85.20,11.7
+56,n03297495_espresso_maker.JPEG,Espresso Maker,550,Espresso Machine,550,YES,99.9,84.50,45.30,129.80,7.7
+57,n03379051_football_helmet.JPEG,Football Helmet,560,Football Helmet,560,YES,78.8,151.00,39.00,190.10,5.3
+58,n03424325_gasmask.JPEG,Gasmask,570,Gas Mask,570,YES,86.3,76.10,17.80,93.90,10.6
+59,n03457902_greenhouse.JPEG,Greenhouse,580,Greenhouse,580,YES,89.6,149.30,18.60,167.90,6.0
+60,n03485407_hand-held_computer.JPEG,Hand-Held Computer,590,Hand-Held Computer,590,YES,64.6,79.70,33.20,112.90,8.9
+61,n03532672_hook.JPEG,Hook,600,Hook,600,YES,82.3,69.10,26.60,95.70,10.4
+62,n03595614_jersey.JPEG,Jersey,610,Shoji,789,NO,49.3,87.20,25.50,112.70,8.9
+63,n03642806_laptop.JPEG,Laptop,620,Library,624,NO,18.3,84.30,17.70,102.00,9.8
+64,n03680355_Loafer.JPEG,Loafer,630,Slip-On Shoe,630,YES,100.0,104.10,28.80,133.00,7.5
+65,n03717622_manhole_cover.JPEG,Manhole Cover,640,Prayer Rug,741,NO,32.2,117.60,60.10,177.70,5.6
+66,n03759954_microphone.JPEG,Microphone,650,Mortar,666,NO,22.8,122.10,24.00,146.20,6.8
+67,n03776460_mobile_home.JPEG,Mobile Home,660,Mobile Home,660,YES,84.8,75.20,34.70,110.00,9.1
+68,n03791053_motor_scooter.JPEG,Motor Scooter,670,Moped,665,NO,51.6,137.70,49.60,187.30,5.3
+69,n03825788_nipple.JPEG,Nipple,680,Nipple,680,YES,95.7,46.60,25.00,71.70,14.0
+70,n03868242_oxcart.JPEG,Oxcart,690,Bullock Cart,690,YES,74.5,90.70,17.40,108.20,9.2
+71,n03887697_paper_towel.JPEG,Paper Towel,700,Water Jug,899,NO,18.4,127.60,33.50,161.10,6.2
+72,n03908714_pencil_sharpener.JPEG,Pencil Sharpener,710,Reel,758,NO,24.4,80.80,30.40,111.20,9.0
+73,n03937543_pill_bottle.JPEG,Pill Bottle,720,Oil Filter,686,NO,21.7,69.60,18.50,88.10,11.3
+74,n03967562_plow.JPEG,Plow,730,Plow,730,YES,61.4,78.60,20.00,98.70,10.1
+75,n03995372_power_drill.JPEG,Power Drill,740,Hard Disk Drive,592,NO,15.2,90.20,37.70,127.90,7.8
+76,n04033995_quilt.JPEG,Quilt,750,Quilt,750,YES,77.0,154.10,30.30,184.40,5.4
+77,n04070727_refrigerator.JPEG,Refrigerator,760,Refrigerator,760,YES,71.3,71.50,20.30,91.90,10.9
+78,n04120489_running_shoe.JPEG,Running Shoe,770,Running Shoe,770,YES,97.1,155.30,25.40,180.80,5.5
+79,n04147183_schooner.JPEG,Schooner,780,Dock,536,NO,31.3,125.10,27.10,152.20,6.6
+80,n04204238_shopping_basket.JPEG,Shopping Basket,790,Shopping Basket,790,YES,68.5,75.60,25.10,100.70,9.9
+81,n04243546_slot.JPEG,Slot,800,Slot Machine,800,YES,93.5,141.20,26.60,167.90,6.0
+82,n04264628_space_bar.JPEG,Space Bar,810,Space Bar,810,YES,68.0,81.60,36.90,118.50,8.4
+83,n04310018_steam_locomotive.JPEG,Steam Locomotive,820,Passenger Car,705,NO,85.9,86.00,22.90,109.00,9.2
+84,n04336792_stretcher.JPEG,Stretcher,830,Stretcher,830,YES,76.2,93.20,26.20,119.40,8.4
+85,n04367480_swab.JPEG,Swab,840,Clothes Iron,606,NO,63.1,71.00,35.10,106.20,9.4
+86,n04399382_teddy.JPEG,Teddy,850,Teddy Bear,850,YES,60.2,82.70,24.20,107.00,9.3
+87,n04443257_tobacco_shop.JPEG,Tobacco Shop,860,Tram,829,NO,12.6,105.00,49.30,154.20,6.5
+88,n04482393_tricycle.JPEG,Tricycle,870,Tricycle,870,YES,44.5,141.10,34.20,175.40,5.7
+89,n04509417_unicycle.JPEG,Unicycle,880,Pulled Rickshaw,612,NO,48.5,86.30,26.60,113.00,8.9
+90,n04540053_volleyball.JPEG,Volleyball,890,Volleyball,890,YES,99.8,166.70,37.10,203.90,4.9
+91,n04562935_water_tower.JPEG,Water Tower,900,Water Tower,900,YES,100.0,99.70,21.60,121.30,8.2
+92,n04597913_wooden_spoon.JPEG,Wooden Spoon,910,Wooden Spoon,910,YES,53.1,102.00,30.90,133.00,7.5
+93,n06874185_traffic_light.JPEG,Traffic Light,920,Traffic Light,920,YES,100.0,132.20,21.20,153.40,6.5
+94,n07684084_French_loaf.JPEG,French Loaf,930,Baguette,930,YES,99.7,78.00,22.30,100.30,10.0
+95,n07716906_spaghetti_squash.JPEG,Spaghetti Squash,940,Spaghetti Squash,940,YES,99.7,47.00,23.90,71.00,14.1
+96,n07747607_orange.JPEG,Orange,950,Mixing Bowl,659,NO,57.9,90.90,31.20,122.10,8.2
+97,n07836838_chocolate_sauce.JPEG,Chocolate Sauce,960,Rotary Dial Telephone,528,NO,33.2,100.90,30.60,131.50,7.6
+98,n09193705_alp.JPEG,Alp,970,Valley,979,NO,61.1,65.60,52.10,117.70,8.5
+99,n09472597_volcano.JPEG,Volcano,980,Volcano,980,YES,97.3,89.60,20.70,110.40,9.1
+100,n12768682_buckeye.JPEG,Buckeye,990,Horse Chestnut Seed,990,YES,98.3,92.00,23.70,115.70,8.6

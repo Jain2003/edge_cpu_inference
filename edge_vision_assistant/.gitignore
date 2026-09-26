@@ -1,0 +1,20 @@
+# Build artifacts
+build/
+bin/
+lib/
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Pre-trained models (downloaded via download_assets.py)
+models/*.onnx
+data/test_100/
+
+# Cache
+__pycache__/
+*.pyc
+.cache/
+.DS_Store
+~$*
