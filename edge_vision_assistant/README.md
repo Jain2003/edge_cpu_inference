@@ -33,6 +33,9 @@ edge_vision_assistant/
 │   ├── resnet18-v1-7.onnx      # Baseline FP32 ResNet-18 model (~44.7 MB)
 │   ├── resnet18-v1-7-int8.onnx # Dynamically quantized INT8 ResNet-18 model (~11.3 MB)
 │   └── imagenet_classes.txt    # 1,000 ImageNet synset category labels
+├── resources/                  # Visual assets & architectural notes
+│   ├── model_visual_representation/ # ResNet-18 architecture diagrams
+│   └── understandings/         # Mathematical audits & roadmap notes
 ├── src/                        # Modular C++ implementation
 │   ├── preprocessor.cpp        # Image ingestion, bilinear resize, planar normalizer implementation
 │   ├── inference_engine.cpp    # ONNX Runtime C++ CPU session & execution implementation

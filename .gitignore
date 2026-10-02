@@ -1,0 +1,26 @@
+# Build outputs
+build/
+bin/
+lib/
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Large binary models & datasets (downloaded via download_assets.py)
+models/*.onnx
+data/test_100/
+*.onnx
+
+# Python & IDE caches
+__pycache__/
+*.pyc
+.cache/
+.pytest_cache/
+.vscode/
+.idea/
+.DS_Store
+~$*
+*.tmp
+*.bak
