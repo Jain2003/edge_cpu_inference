@@ -63,4 +63,54 @@ In embedded AI engineering, the architectural difference between a naive prototy
   this point I understand a little but I need more deeper understanding on this.
 
 
+  ### 4. Production Modular Post-Processing Framework (postprocessing_config.md)
 
+  • What AMD does (postprocessing_config.md):
+  Features a comprehensive, decoupled post-processing library covering:
+      • SOFTMAX, TOPK, ARGMAX, THRESHOLD
+      • CALIBRATION_TEMPERATURE (Temperature scaling)
+      • UNCERTAINTY_ESTIMATION & OUTLIER_DETECTION (Entropy & margin scores)
+      • NMS, SOFT_NMS, DISTANCE_IOU_NMS (Bounding box suppression)
+  • Current state in your CPU project:
+  A hardcoded single function in main.cpp that only does basic Top-5 softmax.
+  • What you can bring to your CPU:
+      • Temperature Scaling (T): Calibrate raw logits (zᵢ/T) to prevent the network from being overconfident on blurry/bad snapshots.
+      • Uncertainty & Outlier Detection: Calculate Shannon Entropy of the softmax distribution:
+
+
+    H(P) = -∑ pᵢ log(pᵢ)
+
+    If H(P) > threshold, the AI glasses can actively say: *"I am uncertain what this is"* rather than giving a false prediction.
+
+  • Fast AVX2 Vector Softmax: Vectorize the exp(zᵢ - max) arithmetic across the 1,000 ImageNet logits.
+  
+  This part I would need deeper explanation.
+
+### 5. Static Quantization with Calibration Data (AMD Quark Pattern)
+
+  • What AMD does (mixed_precision.md):
+  Uses AMD Quark to calibrate quantization ranges against a dataset, avoiding runtime dynamic calculations.
+  • Current state in your CPU project:
+  You currently use Dynamic Quantization (quantize_dynamic). While model weights are INT8, activations are still converted to float and quantized on-the-
+  fly dynamically at runtime, which costs CPU cycles on every single layer.
+  • What you can bring to your CPU:
+      • Static Calibration INT8 Quantization: Use onnxruntime.quantization.quantize_static with a CalibrationDataReader using 20–50 images from
+      data/test_100/.
+      • Fixes both weights AND activation scale/zero-points ahead of time.
+  • Impact on 4-Core CPU: Activations no longer need dynamic min/max scanning per layer, speeding up CPU integer GEMM/Conv kernels by another 1.5× to 2×.
+
+This I understood but would need more explanation.
+
+### 6. Declarative JSON Pipeline Configuration (x_plus_ml_ort Pattern)
+
+  • What AMD does (x_plus_ml_ort):
+  No hardcoded parameters. The application accepts --app-config config.json which specifies:
+      • Input dimensions, color space, normalization means/scales
+      • Model path, batch size, thread count
+      • Postprocessing type, Top-K, confidence thresholds
+  • Current state in your CPU project:
+  Mean, standard deviation, model paths, and Top-K values are hardcoded in C++ constants.
+  • What you can bring to your CPU:
+      • Add a lightweight configuration layer so you can run ResNet-18, MobileNet, or YOLO without recompiling your C++ binary.
+
+      Again would need deeper explanation of this.
