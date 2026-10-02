@@ -61,6 +61,17 @@ struct ModelRunProfile {
     double peak_rss_mb = 0.0;
 };
 
+// Feature Flags for extensible capability selection (-f f1, -f f2, etc.)
+enum class FeatureMode {
+    Auto,           // Default behavior (compare on single image, F1 on dataset)
+    Compare,        // Feature comparison: F1 (FP32) vs F2 (INT8)
+    F1_FP32,        // Feature 1: FP32 Baseline ONNX Runtime CPU Pipeline
+    F2_INT8,        // Feature 2: INT8 Dynamic Quantization
+    F3_SIMD,        // Feature 3: SIMD AVX2 Vector Preprocessing (Planned)
+    F4_ASYNC,       // Feature 4: Asynchronous Multi-threaded 4-Core Pipeline (Planned)
+    F5_STATIC_INT8  // Feature 5: Static Calibration INT8 Quantization (Planned)
+};
+
 // Measure process peak resident set size (RSS) in MB
 inline double get_peak_rss_mb() {
 #if defined(__linux__) || defined(__unix__)
@@ -113,6 +124,16 @@ inline std::string to_title_case(std::string_view input) {
         } else {
             c = static_cast<char>(std::tolower(uc));
         }
+    }
+    return result;
+}
+
+// Convert string to lower case
+inline std::string to_lower_str(std::string_view str) {
+    std::string result;
+    result.reserve(str.size());
+    for (char c : str) {
+        result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
     }
     return result;
 }

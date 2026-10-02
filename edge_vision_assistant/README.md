@@ -96,19 +96,36 @@ On Linux/WSL, this compiles with `-O3 -march=native` to maximize vectorization u
 
 ---
 
-## 🖥️ How to Run & Test
+## 🖥️ How to Run & Test (Extensible Feature Flags)
 
-The compiled executable is located at `./build/edge_vision_assistant`. It supports five flexible execution modes:
+The executable supports an extensible feature flag system using `-f` (or `--feature`):
+
+```bash
+./build/edge_vision_assistant -f <feature_name> [path_to_image_or_directory]
+```
+
+### Feature Flag Reference:
+
+| Feature Flag | Name / Pipeline Mode | Description |
+| :--- | :--- | :--- |
+| **`-f f1`** *(or `--fp32`)* | **Feature 1: FP32 Baseline** | Standard 32-bit floating point model (~44.7 MB) with full precision. |
+| **`-f f2`** *(or `--int8`)* | **Feature 2: INT8 Quantized** | 8-bit dynamic quantization (~11.3 MB, 74.8% weight reduction). |
+| **`-f compare`** *(or `--compare`)* | **Side-by-Side Scorecard** | Evaluates F1 and F2 back-to-back with memory and latency comparison. |
+| **`-f f3`** *(Planned)* | **Feature 3: SIMD AVX2** | Vectorized preprocessing loop using AVX2 intrinsics. |
+| **`-f f4`** *(Planned)* | **Feature 4: Async Pipeline** | Asynchronous multi-threaded 4-core producer-consumer pipeline. |
+| **`-f f5`** *(Planned)* | **Feature 5: Static Quantization** | Calibration dataset quantization (AMD Quark pattern). |
+
+---
 
 ### Mode 1: Side-by-Side Comparison Scorecard (Default for Single Image)
 
-Pass any single image path without additional flags. The engine preprocesses the image once and executes both the **FP32 Baseline** and **INT8 Quantized** models back-to-back, printing a comparative scorecard:
+Pass an image with `-f compare` (or simply without flags on a single image):
 
 ```bash
+./build/edge_vision_assistant -f compare data/test_100/n01440764_tench.JPEG
+# Or simply:
 ./build/edge_vision_assistant data/test_100/n01440764_tench.JPEG
 ```
-
-*(You can also explicitly pass the `--compare` flag).*
 
 #### Example Scorecard Output:
 
@@ -132,11 +149,13 @@ Peak Process RAM (RSS)      400.16 MB               400.16 MB               Meas
 
 ---
 
-### Mode 2: Run Pure INT8 Quantized Model Only
+### Mode 2: Run Feature 2 (INT8 Quantized Model Only)
 
 Evaluate only the compressed 8-bit integer model (~11.3 MB) and view its detailed latency and memory profile:
 
 ```bash
+./build/edge_vision_assistant -f f2 data/test_100/n01440764_tench.JPEG
+# Or using alias:
 ./build/edge_vision_assistant --int8 data/test_100/n01440764_tench.JPEG
 ```
 
@@ -145,11 +164,13 @@ Evaluate only the compressed 8-bit integer model (~11.3 MB) and view its detaile
 
 ---
 
-### Mode 3: Run Pure FP32 Baseline Model Only
+### Mode 3: Run Feature 1 (FP32 Baseline Model Only)
 
 Evaluate only the standard 32-bit floating point model (~44.7 MB):
 
 ```bash
+./build/edge_vision_assistant -f f1 data/test_100/n01440764_tench.JPEG
+# Or using alias:
 ./build/edge_vision_assistant --fp32 data/test_100/n01440764_tench.JPEG
 ```
 
@@ -157,16 +178,14 @@ Evaluate only the standard 32-bit floating point model (~44.7 MB):
 
 ### Mode 4: Batch Dataset Evaluation (100 Images)
 
-Pass a directory path (such as `data/test_100`) to evaluate all images in batch. The engine processes each frame and outputs aggregate statistical metrics:
+Pass a directory path (such as `data/test_100`) to evaluate all images in batch. Combine with `-f f1` or `-f f2`:
 
 ```bash
-./build/edge_vision_assistant data/test_100
-```
+# Evaluate dataset with Feature 1 (FP32)
+./build/edge_vision_assistant -f f1 data/test_100
 
-You can combine this with `--int8` or `--fp32` to select the desired precision:
-
-```bash
-./build/edge_vision_assistant --int8 data/test_100
+# Evaluate dataset with Feature 2 (INT8)
+./build/edge_vision_assistant -f f2 data/test_100
 ```
 
 #### Example Dataset Summary:

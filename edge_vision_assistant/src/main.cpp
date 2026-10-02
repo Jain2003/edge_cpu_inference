@@ -4,11 +4,13 @@
  * High-performance, modular C++ CPU inference pipeline simulating
  * a Smart AI Glasses visual query engine ("What is this?").
  *
- * Orchestrates:
- *  - Preprocessor (STB image, bilinear resize, planar normalization)
- *  - InferenceEngine (ONNX Runtime C++ CPU provider, AVX2 SIMD)
- *  - Postprocessor (Softmax, Top-K, ImageNet label decoding)
- *  - ModelManager (FP32 baseline vs INT8 dynamic quantization)
+ * Supports extensible feature flags:
+ *  - -f f1, --fp32    : Feature 1 (FP32 Baseline CPU Inference)
+ *  - -f f2, --int8    : Feature 2 (INT8 Dynamic Quantization)
+ *  - -f compare       : Side-by-Side Comparison Scorecard (F1 vs F2)
+ *  - -f f3 (planned)  : Feature 3 (SIMD AVX2 Vector Preprocessing)
+ *  - -f f4 (planned)  : Feature 4 (Async Multi-threaded 4-Core Pipeline)
+ *  - -f f5 (planned)  : Feature 5 (Static Calibration Quantization)
  */
 
 #include "types.hpp"
@@ -26,57 +28,123 @@
 
 using namespace edge_vision;
 
+void print_help(const char* prog_name) {
+    std::cout << "=================================================================================\n";
+    std::cout << "👓 SMART AI GLASSES VISION ASSISTANT (C++ CPU ENGINE)\n";
+    std::cout << "=================================================================================\n";
+    std::cout << "Usage: " << prog_name << " [options] [path_to_image_or_directory]\n\n";
+    std::cout << "Feature Flags:\n";
+    std::cout << "  -f, --feature <name>  Select pipeline feature mode to execute:\n";
+    std::cout << "                          f1, fp32       : Feature 1 (FP32 Baseline CPU Inference)\n";
+    std::cout << "                          f2, int8       : Feature 2 (INT8 Dynamic Quantization, ~75% smaller)\n";
+    std::cout << "                          compare, comp  : Side-by-side benchmark comparison (F1 vs F2)\n";
+    std::cout << "                          f3, simd       : Feature 3 (SIMD AVX2 Preprocessing - Planned)\n";
+    std::cout << "                          f4, async      : Feature 4 (Async 4-Core Pipeline - Planned)\n";
+    std::cout << "                          f5, static_int8: Feature 5 (Static Quantization - Planned)\n\n";
+    std::cout << "Convenience Aliases:\n";
+    std::cout << "  --compare             Alias for -f compare (Default on single image)\n";
+    std::cout << "  --fp32                Alias for -f f1\n";
+    std::cout << "  --int8                Alias for -f f2\n";
+    std::cout << "  -h, --help            Show this help reference and exit\n\n";
+    std::cout << "Examples:\n";
+    std::cout << "  " << prog_name << " -f f1 data/test_100/n01440764_tench.JPEG\n";
+    std::cout << "  " << prog_name << " -f f2 data/test_100/n01440764_tench.JPEG\n";
+    std::cout << "  " << prog_name << " -f compare data/test_100/n01440764_tench.JPEG\n";
+    std::cout << "  " << prog_name << " -f f2 data/test_100\n";
+    std::cout << "=================================================================================\n";
+}
+
 int main(int argc, char* argv[]) {
     // 1. Parse CLI arguments
     const std::vector<std::string> args(argv + 1, argv + argc);
 
-    bool force_fp32 = false;
-    bool force_int8 = false;
-    bool compare_mode = false;
+    FeatureMode feature_mode = FeatureMode::Auto;
     fs::path target_path = "data/test_100/n01440764_tench.JPEG";
 
-    for (const auto& arg : args) {
-        if (arg == "--fp32") {
-            force_fp32 = true;
+    for (size_t i = 0; i < args.size(); ++i) {
+        const std::string& arg = args[i];
+
+        if (arg == "-h" || arg == "--help") {
+            print_help(argv[0]);
+            return 0;
+        } else if (arg == "-f" || arg == "--feature") {
+            if (i + 1 < args.size()) {
+                const std::string val = to_lower_str(args[++i]);
+                if (val == "f1" || val == "fp32" || val == "1") {
+                    feature_mode = FeatureMode::F1_FP32;
+                } else if (val == "f2" || val == "int8" || val == "2") {
+                    feature_mode = FeatureMode::F2_INT8;
+                } else if (val == "compare" || val == "comp" || val == "both" || val == "f1_vs_f2") {
+                    feature_mode = FeatureMode::Compare;
+                } else if (val == "f3" || val == "simd") {
+                    feature_mode = FeatureMode::F3_SIMD;
+                } else if (val == "f4" || val == "async") {
+                    feature_mode = FeatureMode::F4_ASYNC;
+                } else if (val == "f5" || val == "static_int8") {
+                    feature_mode = FeatureMode::F5_STATIC_INT8;
+                } else {
+                    std::cerr << "[ERROR] Unknown feature flag: '" << val << "'\n";
+                    std::cerr << "Run '" << argv[0] << " --help' to view available features.\n";
+                    return 1;
+                }
+            } else {
+                std::cerr << "[ERROR] Missing argument for " << arg << "\n";
+                return 1;
+            }
+        } else if (arg.rfind("-f=", 0) == 0 || arg.rfind("--feature=", 0) == 0) {
+            const size_t eq_pos = arg.find('=');
+            const std::string val = to_lower_str(arg.substr(eq_pos + 1));
+            if (val == "f1" || val == "fp32" || val == "1") {
+                feature_mode = FeatureMode::F1_FP32;
+            } else if (val == "f2" || val == "int8" || val == "2") {
+                feature_mode = FeatureMode::F2_INT8;
+            } else if (val == "compare" || val == "comp" || val == "both" || val == "f1_vs_f2") {
+                feature_mode = FeatureMode::Compare;
+            } else if (val == "f3" || val == "simd") {
+                feature_mode = FeatureMode::F3_SIMD;
+            } else if (val == "f4" || val == "async") {
+                feature_mode = FeatureMode::F4_ASYNC;
+            } else if (val == "f5" || val == "static_int8") {
+                feature_mode = FeatureMode::F5_STATIC_INT8;
+            } else {
+                std::cerr << "[ERROR] Unknown feature flag: '" << val << "'\n";
+                std::cerr << "Run '" << argv[0] << " --help' to view available features.\n";
+                return 1;
+            }
+        } else if (arg == "--fp32") {
+            feature_mode = FeatureMode::F1_FP32;
         } else if (arg == "--int8") {
-            force_int8 = true;
+            feature_mode = FeatureMode::F2_INT8;
         } else if (arg == "--compare") {
-            compare_mode = true;
+            feature_mode = FeatureMode::Compare;
         } else if (!arg.empty() && arg[0] != '-') {
             target_path = arg;
         }
     }
 
-    // Default to compare mode on single image if no explicit precision flag is specified
-    if (!force_fp32 && !force_int8) {
-        compare_mode = true;
+    // Planned feature guards
+    if (feature_mode == FeatureMode::F3_SIMD) {
+        std::cout << "[INFO] Feature 3 (SIMD AVX2 Vector Preprocessing) is currently in development.\n";
+        std::cout << "Currently active features: -f f1 (FP32), -f f2 (INT8), -f compare.\n";
+        return 0;
+    } else if (feature_mode == FeatureMode::F4_ASYNC) {
+        std::cout << "[INFO] Feature 4 (Asynchronous Multi-threaded 4-Core Pipeline) is currently in development.\n";
+        std::cout << "Currently active features: -f f1 (FP32), -f f2 (INT8), -f compare.\n";
+        return 0;
+    } else if (feature_mode == FeatureMode::F5_STATIC_INT8) {
+        std::cout << "[INFO] Feature 5 (Static Calibration INT8 Quantization) is currently in development.\n";
+        std::cout << "Currently active features: -f f1 (FP32), -f f2 (INT8), -f compare.\n";
+        return 0;
     }
 
-    // 2. Initialize Model & Pipeline Managers
-    ModelManager model_mgr;
-    std::string error_msg;
-
+    // 2. Validate Target Path
     if (!fs::exists(target_path)) {
         std::cerr << "[ERROR] Target path not found: " << target_path.string() << "\n";
-        std::cerr << "Usage: " << argv[0] << " [options] [path_to_image_or_directory]\n";
-        std::cerr << "Options:\n";
-        std::cerr << "  --compare   Run side-by-side FP32 vs INT8 benchmark comparison (Default on single image)\n";
-        std::cerr << "  --int8      Run only quantized INT8 model\n";
-        std::cerr << "  --fp32      Run only baseline FP32 model\n";
+        std::cerr << "Run '" << argv[0] << " --help' for usage instructions.\n";
         return 1;
     }
 
-    if (!model_mgr.validate_fp32_model(error_msg)) {
-        std::cerr << "[ERROR] " << error_msg << "\n";
-        return 1;
-    }
-
-    if ((compare_mode || force_int8) && !model_mgr.ensure_int8_model(error_msg)) {
-        std::cerr << "[ERROR] " << error_msg << "\n";
-        return 1;
-    }
-
-    // 3. Collect image paths
+    // Collect image paths
     std::vector<fs::path> image_paths;
     if (fs::is_directory(target_path)) {
         for (const auto& entry : fs::directory_iterator(target_path)) {
@@ -95,16 +163,48 @@ int main(int argc, char* argv[]) {
     }
 
     const bool is_single_image = (image_paths.size() == 1);
+
+    // Resolve Auto mode: single image defaults to Compare, dataset defaults to F1 FP32
+    if (feature_mode == FeatureMode::Auto) {
+        feature_mode = is_single_image ? FeatureMode::Compare : FeatureMode::F1_FP32;
+    }
+
+    const bool compare_mode = (feature_mode == FeatureMode::Compare);
+    const bool is_int8_mode = (feature_mode == FeatureMode::F2_INT8);
+
+    // 3. Initialize Model & Pipeline Managers
+    ModelManager model_mgr;
+    std::string error_msg;
+
+    if (!model_mgr.validate_fp32_model(error_msg)) {
+        std::cerr << "[ERROR] " << error_msg << "\n";
+        return 1;
+    }
+
+    if ((compare_mode || is_int8_mode) && !model_mgr.ensure_int8_model(error_msg)) {
+        std::cerr << "[ERROR] " << error_msg << "\n";
+        return 1;
+    }
+
     Preprocessor preprocessor;
     Postprocessor postprocessor(model_mgr.get_labels_path());
     const auto input_shape = preprocessor.get_input_shape();
 
     // 4. Banner Output
+    std::string feature_title;
+    if (compare_mode) {
+        feature_title = "Side-by-Side Comparison (Feature 1 FP32 vs Feature 2 INT8)";
+    } else if (is_int8_mode) {
+        feature_title = "Feature 2: INT8 Dynamic Quantization";
+    } else {
+        feature_title = "Feature 1: FP32 Baseline Pipeline";
+    }
+
     std::cout << "=================================================================================\n";
     std::cout << "👓 SMART AI GLASSES VISION ASSISTANT (C++ CPU ENGINE)\n";
     std::cout << "=================================================================================\n";
     std::cout << "Target Path    : " << target_path.string() << " (" << image_paths.size() << " image" << (is_single_image ? "" : "s") << ")\n";
-    std::cout << "Execution Mode : " << (compare_mode ? "Side-by-Side Comparison (FP32 vs INT8)" : (force_int8 ? "INT8 Quantized" : "FP32 Baseline")) << "\n";
+    std::cout << "Active Feature : " << feature_title << "\n";
     std::cout << "Vector Engine  : " << get_cpu_vector_feature() << "\n";
 
     // -------------------------------------------------------------------------
@@ -149,8 +249,8 @@ int main(int argc, char* argv[]) {
     // -------------------------------------------------------------------------
     // CASE B: STANDARD RUN (Single model over dataset or single image)
     // -------------------------------------------------------------------------
-    const fs::path active_model_path = force_int8 ? model_mgr.get_int8_path() : model_mgr.get_fp32_path();
-    const std::string active_tag = force_int8 ? "INT8 Quantized" : "FP32 Baseline";
+    const fs::path active_model_path = is_int8_mode ? model_mgr.get_int8_path() : model_mgr.get_fp32_path();
+    const std::string active_tag = is_int8_mode ? "Feature 2 (INT8 Quantized)" : "Feature 1 (FP32 Baseline)";
 
     std::cout << "Active Model   : " << active_model_path.filename().string() << " (" << active_tag << ")\n";
     std::cout << "Model Size     : " << std::fixed << std::setprecision(2)
