@@ -1,6 +1,6 @@
 # 👓 Edge Vision Assistant (C++ CPU Inference)
 
-A lightweight, high-performance C++ CPU inference engine simulating a **Smart AI Glasses Snapshot Assistant**.
+A lightweight, high-performance, modular C++ CPU inference engine simulating a **Smart AI Glasses Snapshot Assistant**.
 
 When the user takes a photo snapshot with their AI glasses and asks *"What is this?"*, the executable ingests the image path, executes single-image ONNX CPU inference via the ONNX Runtime C++ API, and outputs human-readable classification results with detailed latency profiling.
 
@@ -19,15 +19,26 @@ edge_vision_assistant/
 ├── results/                    # Generated benchmark evaluation reports
 │   ├── benchmark_results.xlsx  # Detailed styled Excel report with accuracy & latency metrics
 │   └── benchmark_results.csv   # Raw CSV export of all benchmarked runs
-├── include/                    # Header-only dependencies (stb_image, stb_image_resize2)
+├── include/                    # Clean modular header interfaces
+│   ├── types.hpp               # Shared data structures (VisionResult, ModelRunProfile, RSS profiler)
+│   ├── preprocessor.hpp        # Preprocessor class interface (STB load, resize, planar normalization)
+│   ├── inference_engine.hpp    # InferenceEngine class interface (ONNX Runtime session & runner)
+│   ├── postprocessor.hpp       # Postprocessor class interface (Softmax, Top-K, ImageNet labels)
+│   ├── model_manager.hpp       # ModelManager class interface (FP32/INT8 resolution, scorecard table)
+│   ├── stb_image.h             # Lightweight image loader
+│   └── stb_image_resize2.h     # High-quality image resizer
 ├── data/                       # ImageNet benchmark test dataset
 │   └── test_100/               # 100 diverse ImageNet benchmark images
 ├── models/                     # Pre-trained ONNX models & ImageNet classes
 │   ├── resnet18-v1-7.onnx      # Baseline FP32 ResNet-18 model (~44.7 MB)
 │   ├── resnet18-v1-7-int8.onnx # Dynamically quantized INT8 ResNet-18 model (~11.3 MB)
 │   └── imagenet_classes.txt    # 1,000 ImageNet synset category labels
-├── src/
-│   └── main.cpp                # Modern C++ dataset & snapshot inference engine (FP32 vs INT8)
+├── src/                        # Modular C++ implementation
+│   ├── preprocessor.cpp        # Image ingestion, bilinear resize, planar normalizer implementation
+│   ├── inference_engine.cpp    # ONNX Runtime C++ CPU session & execution implementation
+│   ├── postprocessor.cpp       # Softmax, Argmax, Top-K sorting & label formatting implementation
+│   ├── model_manager.cpp       # Quantization verification & scorecard comparison implementation
+│   └── main.cpp                # Lightweight CLI orchestrator (~140 lines)
 └── README.md                   # Build, usage, and architectural documentation
 ```
 
@@ -127,17 +138,30 @@ python3 benchmark_100.py
 
 ---
 
-## 🔍 Pipeline Architecture (`src/main.cpp`)
+## 🔍 Modular Pipeline Architecture
 
-1. **CLI Ingestion**: Parses arguments (`--compare`, `--int8`, `--fp32`, path) using modern C++ `std::vector<std::string>`.
-2. **Preprocessing**:
+The pipeline is partitioned into four independent, reusable components connected by clean interfaces:
+
+1. **Preprocessor (`include/preprocessor.hpp`, `src/preprocessor.cpp`)**:
    - Ingests image from disk via STB Image (`stbi_load`).
    - High-quality bilinear resize to model input dimensions (224 × 224) via `stbir_resize_uint8_linear`.
    - Normalizes pixels using ImageNet mean & standard deviation ($\mu = [0.485, 0.456, 0.406]$, $\sigma = [0.229, 0.224, 0.225]$).
    - Converts interleaved RGB (HWC) to planar NCHW layout `[1, 3, 224, 224]`.
-3. **Dual-Model Execution**: Evaluates `Ort::Session::Run()` for both FP32 and INT8 models with warm-up cycles.
-4. **Postprocessing**: Computes numerically stable Softmax, selects Top-1 Argmax class, and looks up human-readable ImageNet label with title formatting.
-5. **Profiling**: Measures microsecond timestamps via `std::chrono::steady_clock` across Preprocessing, CPU Inference, and aggregate execution, along with peak resident memory (`getrusage()`).
+2. **Inference Engine (`include/inference_engine.hpp`, `src/inference_engine.cpp`)**:
+   - Manages `Ort::Env`, `Ort::Session`, thread configuration, and graph optimizations.
+   - Binds tensor memory buffers and executes warm-up runs.
+   - Evaluates `Ort::Session::Run()` using CPU AVX2 SIMD vector pipelines.
+3. **Postprocessor (`include/postprocessor.hpp`, `src/postprocessor.cpp`)**:
+   - Computes numerically stable Softmax ($z_i - \max(z)$) across all 1,000 ImageNet logits.
+   - Selects Top-1 Argmax class and Top-K ranked predictions.
+   - Maps synset indices to formatted human-readable class names.
+4. **Model & Quantization Manager (`include/model_manager.hpp`, `src/model_manager.cpp`)**:
+   - Manages model paths and verifies FP32 / INT8 model files.
+   - Automatically executes `quantize_model.py` if the INT8 model is not present.
+   - Measures model disk/RAM footprint and samples peak process RSS memory (`getrusage()`).
+   - Generates side-by-side comparative scorecards.
+5. **CLI Orchestrator (`src/main.cpp`)**:
+   - Slim (< 140 lines) entry point handling CLI argument parsing (`--compare`, `--int8`, `--fp32`, path), pipeline coordination, and dataset statistics.
 
 ---
 

@@ -67,7 +67,8 @@ if(NOT ONNXRUNTIME_LIB)
 endif()
 
 # Executable target
-add_executable(edge_vision_assistant src/main.cpp)
+file(GLOB SRC_FILES "src/*.cpp")
+add_executable(edge_vision_assistant ${SRC_FILES})
 
 target_include_directories(edge_vision_assistant PRIVATE
     ${PROJECT_SOURCE_DIR}/include
