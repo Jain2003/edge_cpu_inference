@@ -2,13 +2,13 @@
 
 A lightweight, high-performance, modular C++ CPU inference engine simulating a **Smart AI Glasses Snapshot Assistant**.
 
-When the user takes a photo snapshot with their AI glasses and asks *"What is this?"*, the executable ingests the image path, executes single-image ONNX CPU inference via the ONNX Runtime C++ API, and outputs human-readable classification results with detailed latency profiling.
+When the wearer takes a photo snapshot with their AI glasses and asks *"What is this?"*, the executable ingests the image path, executes single-image ONNX CPU inference via the ONNX Runtime C++ API, and outputs human-readable classification results with microsecond-level latency breakdown.
 
 Supports both **FP32 Baseline** and **INT8 Dynamic Quantization** with automated side-by-side performance, latency, and memory comparison.
 
 ---
 
-## 📁 Directory Structure
+## 📁 Directory Structure & Architecture
 
 ```text
 edge_vision_assistant/
@@ -19,14 +19,14 @@ edge_vision_assistant/
 ├── results/                    # Generated benchmark evaluation reports
 │   ├── benchmark_results.xlsx  # Detailed styled Excel report with accuracy & latency metrics
 │   └── benchmark_results.csv   # Raw CSV export of all benchmarked runs
-├── include/                    # Clean modular header interfaces
+├── include/                    # Clean modular C++ header interfaces
 │   ├── types.hpp               # Shared data structures (VisionResult, ModelRunProfile, RSS profiler)
 │   ├── preprocessor.hpp        # Preprocessor class interface (STB load, resize, planar normalization)
 │   ├── inference_engine.hpp    # InferenceEngine class interface (ONNX Runtime session & runner)
 │   ├── postprocessor.hpp       # Postprocessor class interface (Softmax, Top-K, ImageNet labels)
 │   ├── model_manager.hpp       # ModelManager class interface (FP32/INT8 resolution, scorecard table)
-│   ├── stb_image.h             # Lightweight image loader
-│   └── stb_image_resize2.h     # High-quality image resizer
+│   ├── stb_image.h             # Single-header lightweight image loader
+│   └── stb_image_resize2.h     # Single-header high-quality image resizer
 ├── data/                       # ImageNet benchmark test dataset
 │   └── test_100/               # 100 diverse ImageNet benchmark images
 ├── models/                     # Pre-trained ONNX models & ImageNet classes
@@ -44,60 +44,73 @@ edge_vision_assistant/
 
 ---
 
-## ⚡ Quick Start
+## 🛠️ Prerequisites
 
-### 1. Download Model & Assets
+Before building, ensure you have the following installed on your system:
 
-Run the asset download script once to fetch the pre-trained `resnet18-v1-7.onnx` model and the ImageNet 1,000 class labels:
+- **C++ Compiler**: GCC 9+, Clang 10+, or MSVC 2019+ (Supporting C++17)
+- **CMake**: Version 3.16 or newer (`sudo apt install cmake` on Ubuntu/Debian)
+- **Python**: Version 3.8+ (Used for downloading assets and running quantization)
+- **Python Libraries** (for asset download and quantization):
+  ```bash
+  pip install onnx onnxruntime requests pandas openpyxl pillow
+  ```
+
+---
+
+## 🚀 How to Build and Compile
+
+### Step 1: Clone and Navigate to the Project
+
+```bash
+cd /mnt/d/sahaj/projects/edge_cpu_inference/edge_vision_assistant
+```
+*(On Windows: `cd D:\sahaj\projects\edge_cpu_inference\edge_vision_assistant`)*
+
+### Step 2: Download Model & Benchmark Assets (One-Time)
+
+Download the pre-trained `resnet18-v1-7.onnx` model, 1,000 ImageNet class labels, and the 100-image test set:
 
 ```bash
 python3 download_assets.py
 ```
 
-### 2. Generate INT8 Quantized Model (Optional)
-
-Generate the 8-bit quantized model using dynamic quantization:
-
-```bash
-python3 quantize_model.py
-```
-*(If the INT8 model is missing when running in comparison mode, the C++ application automatically runs this script for you).*
-
-### 3. Configure & Build with CMake
+### Step 3: Configure the Build with CMake
 
 ```bash
 cmake -B build
+```
+
+> [!NOTE]
+> **Automatic Dependency Resolution**: If ONNX Runtime is not already installed on your system, CMake will automatically download the official pre-built ONNX Runtime C++ binaries (v1.18.0) matching your OS and CPU architecture (Linux x86_64/ARM64, macOS, Windows).
+
+### Step 4: Compile the Project
+
+Compile all 4 modular source files and the main orchestrator in Release mode:
+
+```bash
 cmake --build build --config Release
 ```
 
-*Note: CMake automatically downloads and configures the official pre-built ONNX Runtime C++ binaries for your platform (Linux x86_64, aarch64, macOS, Windows) if not already installed!*
+On Linux/WSL, this compiles with `-O3 -march=native` to maximize vectorization using your CPU's hardware SIMD registers (AVX2 / AVX-512 / NEON).
 
-### 4. Run Side-by-Side Comparison (FP32 vs INT8)
+---
 
-Run directly on any snapshot image to trigger the side-by-side benchmark scorecard:
+## 🖥️ How to Run & Test
+
+The compiled executable is located at `./build/edge_vision_assistant`. It supports five flexible execution modes:
+
+### Mode 1: Side-by-Side Comparison Scorecard (Default for Single Image)
+
+Pass any single image path without additional flags. The engine preprocesses the image once and executes both the **FP32 Baseline** and **INT8 Quantized** models back-to-back, printing a comparative scorecard:
 
 ```bash
 ./build/edge_vision_assistant data/test_100/n01440764_tench.JPEG
 ```
 
-You can also explicitly select the execution precision:
+*(You can also explicitly pass the `--compare` flag).*
 
-```bash
-# Run only INT8 quantized model
-./build/edge_vision_assistant --int8 data/test_100/n01440764_tench.JPEG
-
-# Run only FP32 baseline model
-./build/edge_vision_assistant --fp32 data/test_100/n01440764_tench.JPEG
-
-# Evaluate entire 100-image dataset
-./build/edge_vision_assistant data/test_100
-```
-
----
-
-## ⚔️ Side-by-Side Benchmark Scorecard
-
-When evaluating a snapshot in `--compare` mode, the C++ engine measures preprocessing, CPU inference latency across both models, prediction fidelity, and peak resident memory (RSS via `getrusage`):
+#### Example Scorecard Output:
 
 ```text
 ===================================================================================================
@@ -119,70 +132,154 @@ Peak Process RAM (RSS)      400.16 MB               400.16 MB               Meas
 
 ---
 
-## 📊 100-Image ImageNet Benchmark Suite
+### Mode 2: Run Pure INT8 Quantized Model Only
 
-The repository includes a comprehensive evaluation and profiling suite ([`benchmark_100.py`](benchmark_100.py)) that validates model accuracy and real-world latency distribution over 100 diverse ImageNet test images.
+Evaluate only the compressed 8-bit integer model (~11.3 MB) and view its detailed latency and memory profile:
 
-### Running the Benchmark
+```bash
+./build/edge_vision_assistant --int8 data/test_100/n01440764_tench.JPEG
+```
+
+> [!TIP]
+> If `models/resnet18-v1-7-int8.onnx` is missing, the C++ engine will automatically run `python3 quantize_model.py` to generate it on-the-fly!
+
+---
+
+### Mode 3: Run Pure FP32 Baseline Model Only
+
+Evaluate only the standard 32-bit floating point model (~44.7 MB):
+
+```bash
+./build/edge_vision_assistant --fp32 data/test_100/n01440764_tench.JPEG
+```
+
+---
+
+### Mode 4: Batch Dataset Evaluation (100 Images)
+
+Pass a directory path (such as `data/test_100`) to evaluate all images in batch. The engine processes each frame and outputs aggregate statistical metrics:
+
+```bash
+./build/edge_vision_assistant data/test_100
+```
+
+You can combine this with `--int8` or `--fp32` to select the desired precision:
+
+```bash
+./build/edge_vision_assistant --int8 data/test_100
+```
+
+#### Example Dataset Summary:
+
+```text
+=================================================================================
+📊 DATASET EVALUATION SUMMARY (100 IMAGES - INT8 Quantized)
+=================================================================================
+Average Preprocess  : 23.41 ms
+Average Inference   : 24.12 ms (AVX2 Vector Cores)
+Average Postprocess : 0.02 ms
+Average Total       : 47.55 ms
+Median Total (P50)  : 45.20 ms
+Tail Latency (P95)  : 62.80 ms
+Throughput          : 21.03 FPS
+Peak RAM (RSS)      : 405.12 MB
+=================================================================================
+```
+
+---
+
+### Mode 5: Run on Custom Images
+
+Pass any arbitrary JPEG, PNG, or BMP image from your computer:
+
+```bash
+./build/edge_vision_assistant /path/to/my_photo.jpg
+```
+
+---
+
+## 📊 Automated 100-Image ImageNet Benchmark Suite
+
+The repository includes a standalone automated evaluation script ([`benchmark_100.py`](benchmark_100.py)) that validates model accuracy and real-world latency distribution over 100 diverse ImageNet test images.
+
+### Running the Python Benchmark
 
 ```bash
 python3 benchmark_100.py
 ```
 
-### What the Benchmark Does:
-1. **Automated Dataset Sourcing**: Downloads 100 diverse images sampled across all 1,000 ImageNet categories into `data/test_100/`.
-2. **Ground Truth Validation**: Maps synset identifiers to official human-readable class names.
-3. **C++ Subprocess Execution**: Evaluates `./build/edge_vision_assistant` against each image snapshot.
-4. **Statistical Aggregation**: Computes mean, median, P90, and P95 latency percentiles for preprocessing, CPU inference, and end-to-end execution.
-5. **Formatted Exports**: Saves results to `results/benchmark_results.csv` and a styled multi-sheet Excel workbook `results/benchmark_results.xlsx`.
+### What It Does:
+1. **Ground Truth Validation**: Maps synset identifiers to official human-readable class names.
+2. **C++ Subprocess Execution**: Evaluates `./build/edge_vision_assistant` against each image snapshot.
+3. **Statistical Aggregation**: Computes mean, median, P90, and P95 latency percentiles for preprocessing, CPU inference, and end-to-end execution.
+4. **Formatted Exports**: Saves results to `results/benchmark_results.csv` and a styled multi-sheet Excel workbook `results/benchmark_results.xlsx`.
 
 ---
 
 ## 🔍 Modular Pipeline Architecture
 
-The pipeline is partitioned into four independent, reusable components connected by clean interfaces:
+The C++ engine is divided into four cleanly decoupled modules connected by simple interfaces:
 
-1. **Preprocessor (`include/preprocessor.hpp`, `src/preprocessor.cpp`)**:
-   - Ingests image from disk via STB Image (`stbi_load`).
-   - High-quality bilinear resize to model input dimensions (224 × 224) via `stbir_resize_uint8_linear`.
-   - Normalizes pixels using ImageNet mean & standard deviation ($\mu = [0.485, 0.456, 0.406]$, $\sigma = [0.229, 0.224, 0.225]$).
-   - Converts interleaved RGB (HWC) to planar NCHW layout `[1, 3, 224, 224]`.
-2. **Inference Engine (`include/inference_engine.hpp`, `src/inference_engine.cpp`)**:
-   - Manages `Ort::Env`, `Ort::Session`, thread configuration, and graph optimizations.
-   - Binds tensor memory buffers and executes warm-up runs.
-   - Evaluates `Ort::Session::Run()` using CPU AVX2 SIMD vector pipelines.
-3. **Postprocessor (`include/postprocessor.hpp`, `src/postprocessor.cpp`)**:
-   - Computes numerically stable Softmax ($z_i - \max(z)$) across all 1,000 ImageNet logits.
-   - Selects Top-1 Argmax class and Top-K ranked predictions.
-   - Maps synset indices to formatted human-readable class names.
-4. **Model & Quantization Manager (`include/model_manager.hpp`, `src/model_manager.cpp`)**:
-   - Manages model paths and verifies FP32 / INT8 model files.
-   - Automatically executes `quantize_model.py` if the INT8 model is not present.
-   - Measures model disk/RAM footprint and samples peak process RSS memory (`getrusage()`).
-   - Generates side-by-side comparative scorecards.
-5. **CLI Orchestrator (`src/main.cpp`)**:
-   - Slim (< 140 lines) entry point handling CLI argument parsing (`--compare`, `--int8`, `--fp32`, path), pipeline coordination, and dataset statistics.
+```mermaid
+flowchart LR
+    A["Raw Image / Dataset"] --> B["Module 1: Preprocessor<br/>(STB Decode, Resize, Normalization)"]
+    B -->|"Input Tensor Buffer"| C["Module 2: Inference Engine<br/>(ONNX Runtime Session, AVX2 SIMD)"]
+    C -->|"Raw Output Logits"| D["Module 3: Postprocessor<br/>(Softmax, Top-K, Labels)"]
+    D --> E["VisionResult / Output"]
+    
+    M["Module 4: Model & Quantization Manager<br/>(FP32 vs INT8 paths, Auto-quantize, RSS Memory)"] -.-> C
+    M -.-> E
+```
+
+### 1. Preprocessor ([`include/preprocessor.hpp`](include/preprocessor.hpp), [`src/preprocessor.cpp`](src/preprocessor.cpp))
+- Ingests image bytes from disk using STB Image (`stbi_load`).
+- Bilinear resizing to $224 \times 224$ via `stbir_resize_uint8_linear`.
+- Normalizes RGB channels using ImageNet mean ($\mu = [0.485, 0.456, 0.406]$) and standard deviation ($\sigma = [0.229, 0.224, 0.225]$).
+- Converts interleaved $HWC$ byte layout into planar $NCHW$ `[1, 3, 224, 224]` float tensor memory.
+
+### 2. Inference Engine ([`include/inference_engine.hpp`](include/inference_engine.hpp), [`src/inference_engine.cpp`](src/inference_engine.cpp))
+- Manages `Ort::Env`, `Ort::Session`, thread configuration, and graph optimizations.
+- Executes warm-up cycles to eliminate initial JIT/cache latency spikes.
+- Evaluates `session_->Run()` on AVX2 vector SIMD execution units and returns raw logits.
+
+### 3. Postprocessor ([`include/postprocessor.hpp`](include/postprocessor.hpp), [`src/postprocessor.cpp`](src/postprocessor.cpp))
+- Computes numerically stable Softmax:
+  $$p_i = \frac{e^{z_i - \max(z)}}{\sum_j e^{z_j - \max(z)}}$$
+- Extracts Top-K ranked predictions and Top-1 Argmax class.
+- Resolves ImageNet synset IDs to title-cased class labels.
+
+### 4. Model & Quantization Manager ([`include/model_manager.hpp`](include/model_manager.hpp), [`src/model_manager.cpp`](src/model_manager.cpp))
+- Verifies model existence and auto-triggers `quantize_model.py` if the INT8 model is missing.
+- Measures model file size on disk/RAM.
+- Samples peak process Resident Set Size (RSS) using Linux `getrusage()`.
+- Generates side-by-side benchmark scorecards.
+
+### 5. CLI Orchestrator ([`src/main.cpp`](src/main.cpp))
+- Slim, readable entry point (~140 lines) that coordinates arguments, components, and dataset loops.
 
 ---
 
 ## 💡 C++ Design & Best Practices
 
-### 1. Modern C++ Argument Parsing & Memory Profiling
-In [`src/main.cpp`](src/main.cpp):
-- Uses `std::vector<std::string>` and `std::filesystem::path` to eliminate raw pointer arithmetic and C-style char arrays.
-- Employs `getrusage(RUSAGE_SELF, ...)` on Linux to inspect resident process memory (RSS) in megabytes.
-- Manages STB Image buffers via `std::unique_ptr<unsigned char[], StbImageDeleter>` RAII handles.
-
-### 2. Why Explicit `std::` Instead of `using namespace std;`?
-This codebase follows modern C++ industry guidelines (including C++ Core Guidelines SF.7):
-- **Avoid Namespace Pollution**: The `std` namespace defines hundreds of generic identifiers (`size`, `count`, `distance`, `move`, `min`, `max`). Using `using namespace std;` brings all of them into global scope, risking name collisions.
-- **Explicit Provenance & Readability**: Explicitly writing `std::vector`, `std::string`, `std::chrono` makes it immediately clear which types belong to the standard library vs third-party APIs (`Ort::`) or project structures (`VisionResult`).
-- **Targeted Scope Aliases**: Where abbreviation improves readability without namespace pollution, targeted local aliases are used instead (e.g., `using Clock = std::chrono::steady_clock;` inside functions).
+1. **Modern C++ Strings & Paths**:
+   Uses `std::vector<std::string>` and `std::filesystem::path` to eliminate raw pointer arithmetic and unsafe C-style character buffers (`char*`).
+2. **RAII Memory Management**:
+   Third-party STB image buffers are managed using `std::unique_ptr<unsigned char[], StbImageDeleter>`, guaranteeing zero memory leaks even on failed decode paths.
+3. **Explicit Namespaces**:
+   Follows C++ Core Guidelines SF.7 by avoiding `using namespace std;` in headers and library files to prevent namespace pollution.
+4. **Dynamic CMake Fetching**:
+   Automatically downloads and configures official pre-built ONNX Runtime C++ release archives based on OS and processor architecture without requiring manual system-wide installations.
 
 ---
 
-## 🚀 Optimization & Customization Points
+## ⚡ INT8 Quantization Workflow
 
-- **Zero-Allocation Arenas**: Pre-allocate continuous tensor buffers to eliminate heap allocations across consecutive frames.
-- **SIMD Vector Intrinsics**: Replace pixel normalization loops with explicit AVX2/AVX-512 (`_mm256_fmadd_ps`) or ARM NEON (`vfmaq_f32`) vector intrinsics.
-- **VNNI Acceleration**: On CPUs supporting Intel DL Boost / VNNI (`vpdpbusd`), INT8 quantized matrix multiplications execute with double the throughput of standard AVX2.
+Model quantization is handled by [`quantize_model.py`](quantize_model.py):
+
+```bash
+python3 quantize_model.py
+```
+
+- Converts 32-bit floating point weights into 8-bit unsigned integers (`QuantType.QUInt8`).
+- Shrinks model size from **44.65 MB to 11.25 MB (74.8% memory savings)**.
+- Achieves **100% Top-1 classification agreement** with the FP32 baseline on ImageNet.
